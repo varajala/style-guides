@@ -20,9 +20,9 @@ import express from "express";
 import cors from "cors";
 import * as fs from "fs/promises";
 import * as path from "path";
-import { configLoader } from "./config";
-import { logger } from "./utils/logger";
-import { FileEntry, ReadFileOptions } from "../types/api";
+import { configLoader } from "./Config";
+import { logger } from "./Utils/Logger";
+import { FileEntry, ReadFileOptions } from "../Types/Api";
 
 // Private helper type only used in this file
 interface ValidationResult {
@@ -34,7 +34,7 @@ export async function readFileAsync(
     projectPath: string,
     filePath: string,
     options?: ReadFileOptions
-): Promise<[Optional<string>, Error]> {
+): Promise<[Optional<string>, ErrorType]> {
     // Implementation
 }
 ```
@@ -47,9 +47,9 @@ import express from "express";
 import cors from "cors";
 import * as fs from "fs/promises";
 import * as path from "path";
-import { configLoader } from "./config";
-import { logger } from "./utils/logger";
-import { FileEntry, ReadFileOptions } from "../types/api";
+import { configLoader } from "./Config";
+import { logger } from "./Utils/Logger";
+import { FileEntry, ReadFileOptions } from "../Types/Api";
 ```
 
 ## Functions
@@ -60,7 +60,7 @@ export async function readFileAsync(
     projectPath: string,
     filePath: string,
     options?: ReadFileOptions
-): Promise<[Optional<string>, Error]> {
+): Promise<[Optional<string>, ErrorType]> {
     // Implementation
 }
 ```
@@ -71,7 +71,7 @@ export async function readFileAsync(
 - Exit early for error conditions
 
 ```typescript
-export async function processFileAsync(path: string): Promise<[Optional<void>, Error]> {
+export async function processFileAsync(path: string): Promise<[Optional<void>, ErrorType]> {
     if (!path) {
         return [null, "Path is required"];
     }
@@ -96,14 +96,14 @@ Use tuple-based error handling for expected error cases. Reserve exceptions for 
 Define common error handling types in your project (typically in a shared types file):
 ```typescript
 // These should be defined once in your project's shared types
-type Error = string | null;
+type ErrorType = string | null;
 type Optional<T> = T | null;
 ```
 
 Then use these types consistently with the order always being `[value, error]`:
 ```typescript
 // Preferred: Tuple-based error handling
-export async function readFileAsync(filePath: string): Promise<[Optional<string>, Error]> {
+export async function readFileAsync(filePath: string): Promise<[Optional<string>, ErrorType]> {
     if (!filePath) {
         return [null, "File path cannot be empty"];
     }
@@ -218,7 +218,7 @@ interface FileProcessingOptions {
 
 export async function processFileAsync(
     options: FileProcessingOptions
-): Promise<[Optional<boolean>, Error]> {
+): Promise<[Optional<boolean>, ErrorType]> {
     // Implementation
 }
 
@@ -251,11 +251,10 @@ export default class PathValidator { }
 ## Interfacing with servers
 Isolate all server communication in dedicated client files within a single directory. This contains the API surface to one place in the codebase.
 
-Create a `clients/` directory with files named `[Entity]Client.ts` for each logical grouping of endpoints:
+Create a `Clients/` directory with files named `[Entity]Client.ts` for each logical grouping of endpoints:
 
 ```
-src/
-  clients/
+Clients/
     UserClient.ts
     ProjectClient.ts
     FileClient.ts
@@ -269,7 +268,7 @@ Each client file should:
 
 ```typescript
 // clients/UserClient.ts
-import { Optional, Error } from "../types/common";
+import { Optional, ErrorType } from "../Types/Common";
 
 interface UserResponse {
     readonly id: string;
@@ -282,7 +281,7 @@ interface CreateUserRequest {
     readonly email: string;
 }
 
-export async function getUserAsync(userId: string): Promise<[Optional<UserResponse>, Error]> {
+export async function getUserAsync(userId: string): Promise<[Optional<UserResponse>, ErrorType]> {
     try {
         const response = await fetch(`/api/users/${userId}`);
 
@@ -293,11 +292,11 @@ export async function getUserAsync(userId: string): Promise<[Optional<UserRespon
         const data = await response.json();
         return [data, null];
     } catch (error) {
-        return [null, `Network error: ${error instanceof Error ? error.message : "Unknown error"}`];
+        return [null, `Network error: ${error instanceof ErrorType ? error.message : "Unknown error"}`];
     }
 }
 
-export async function createUserAsync(request: CreateUserRequest): Promise<[Optional<UserResponse>, Error]> {
+export async function createUserAsync(request: CreateUserRequest): Promise<[Optional<UserResponse>, ErrorType]> {
     try {
         const response = await fetch("/api/users", {
             method: "POST",
@@ -312,7 +311,7 @@ export async function createUserAsync(request: CreateUserRequest): Promise<[Opti
         const data = await response.json();
         return [data, null];
     } catch (error) {
-        return [null, `Network error: ${error instanceof Error ? error.message : "Unknown error"}`];
+        return [null, `Network error: ${error instanceof ErrorType ? error.message : "Unknown error"}`];
     }
 }
 ```
@@ -324,8 +323,8 @@ This pattern:
 - Creates a clear contract between frontend and backend
 
 ## Express middleware and routes
-Use the async handler pattern for Express routes.
-Always add auth middleware, unless authentication must be disabled for the given endpoint.
+Use the async handler pattern for Express routes with tuple-based error handling:
+
 ```typescript
 router.post("/files/:project", authMiddleware, asyncHandler(async (req, res) => {
     const [result, error] = await fileService.processFileAsync(req.params.project, req.body);
@@ -336,10 +335,15 @@ router.post("/files/:project", authMiddleware, asyncHandler(async (req, res) => 
 
     return res.json(result);
 }));
+
+// Health endpoints don't need auth
+router.get("/health", asyncHandler(async (req, res) => {
+    return res.json({ status: "healthy" });
+}));
 ```
 
 ## Naming conventions
-- **Files**: use PascalCase for all file names (`FileService.ts`, `PathValidation.ts`)
+- **Files**: use PascalCase for all file and folder names (`Services/FileService.ts`, `Utils/PathValidation.ts`)
 - **Functions/Variables**: use camelCase (`resolvedPath`, `makeApiRequest`, `processFile`)
 - **Types/Interfaces**: use PascalCase, prefix interfaces with `I` (`FileEntry`, `IApiResponse`)
 - **Constants**: use PascalCase for exported constants (`ApiKey`, `ServiceUrl`)
@@ -364,7 +368,7 @@ const config = {
 const filtered = items.filter(item => item.isActive);
 
 // Function declarations for top-level functions
-export async function processItemsAsync(items: Item[]): Promise<[Optional<void>, Error]> {
+export async function processItemsAsync(items: Item[]): Promise<[Optional<void>, ErrorType]> {
     // Implementation
 }
 ```
@@ -421,7 +425,7 @@ export function getStatusCode(code: number): string {
         case 404:
             return "Not Found";
         case 500:
-            return "Server Error";
+            return "Server error";
         default:
             return "Unknown";
     }
